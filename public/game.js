@@ -870,6 +870,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
         entity.type = type;
         entity.valid = true;
         entity.lights = [];
+        entity.isColliding = false;
 
         entity.tick = function (delta) {
             if (ENABLE_DEBUG && entity === player) {
@@ -1583,7 +1584,6 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 y: 0
             };
         }
-        return currentBuilding;
     };
 
     game.removeEntities = function() {
@@ -1594,6 +1594,27 @@ const fontFamily = ['Recursive', 'sans-serif'];
         for (let i=0; i<entities.length; i++) {
             let entity = entities[i];
             entity.remove();
+        }
+    }
+    /*Gurney's super awesome collision detection*/
+    game.checkCollisions = function(obj1) {
+        obj1.isColliding = false;
+        let obj2;
+        for (let i = 0; i < entities.length; i++) {
+            if (entities[i] == obj1){
+                continue;
+            } else {
+                obj2 = entities[i];
+                if (
+                    obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
+                    obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
+                    obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
+                    (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
+                ) {
+                    obj1.isColliding = true;
+                    console.log(obj1.isColliding)
+                }
+            }
         }
     }
 
@@ -1684,10 +1705,9 @@ const fontFamily = ['Recursive', 'sans-serif'];
             } else {
                 if (!selectedPoint && (!currentBuilding.selectPosition || (Date.now()-currentBuilding.selectTime > 250 || Math.distanceBetween(currentBuilding.selectPosition, {x: gmx, y: gmy}) > 20))) {
                     currentBuilding.selectPosition = null;
-
+                    game.checkCollisions(currentBuilding);
                     currentBuilding.x = gmx - currentBuildingOffset.x;
                     currentBuilding.y = gmy - currentBuildingOffset.y;
-
                     if (game.settings.enableGrid || keys[16]) {
                         let gridSize = game.settings.gridSize ? game.settings.gridSize : 16;
                         currentBuilding.x = Math.floor(currentBuilding.x / gridSize) * gridSize;
