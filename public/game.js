@@ -1600,23 +1600,36 @@ const fontFamily = ['Recursive', 'sans-serif'];
     game.checkCollisions = function(obj1) {
         obj1.isColliding = false;
         let obj2;
-        for (let i = 0; i < entities.length; i++) {
-            if (entities[i] == obj1){
-                continue;
-            } else {
-                obj2 = entities[i];
-                if (
+        if (obj1.building.category == 'foundations'){
+            for (let i = 0; i < entities.length; i++) {
+                if (entities[i] != obj1 && entities[i].building.category == 'foundations'){
+                    obj2 = entities[i];
+                    if (
+                        obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
+                        obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
+                        obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
+                        (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
+                    ) {
+                        obj1.isColliding = true;
+                    }
+                }                
+            }
+        } else {
+            for (let i = 0; i < entities.length; i++) {
+                if (entities[i] != obj1 && entities[i].building.category != 'foundations'){
+                    obj2 = entities[i];
+                    if (
                     obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
                     obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
                     obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
                     (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
                 ) {
                     obj1.isColliding = true;
-                    console.log(obj1.isColliding)
-                }
             }
         }
     }
+}
+}
 
     const FPSMIN = 30;
     let fpsCheck = null;
@@ -1706,6 +1719,11 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 if (!selectedPoint && (!currentBuilding.selectPosition || (Date.now()-currentBuilding.selectTime > 250 || Math.distanceBetween(currentBuilding.selectPosition, {x: gmx, y: gmy}) > 20))) {
                     currentBuilding.selectPosition = null;
                     game.checkCollisions(currentBuilding);
+                    if (currentBuilding.isColliding){
+                        currentBuilding.alpha = 0.5;
+                    } else {
+                        currentBuilding.alpha = 1;
+                    }
                     currentBuilding.x = gmx - currentBuildingOffset.x;
                     currentBuilding.y = gmy - currentBuildingOffset.y;
                     if (game.settings.enableGrid || keys[16]) {
