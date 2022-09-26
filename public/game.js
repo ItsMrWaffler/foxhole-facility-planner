@@ -9,6 +9,8 @@ const game = {
         gridSize: 16,
         enableSnapRotation: true,
         snapRotationDegrees: 15,
+        selectedTeam: null,
+        showUpgradesAsBuildings: true,
         volume: 1
     },
     isPlayScreen: false,
@@ -42,7 +44,7 @@ try {
     if (window.localStorage) {
         let newSettings = window.localStorage.getItem('settings');
         if (newSettings) {
-            game.settings = JSON.parse(newSettings);
+            game.settings = Object.assign({}, game.settings, JSON.parse(newSettings));
         }
     }
 } catch(e) {
@@ -143,7 +145,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
     let sounds = null;
     let asset_list = {
         white: 'white.png',
-        background: 'grid.webp',
+        background: 'grid_32.webp',
         wall: 'wall.png'
     };
     for (let i=0; i<window.objectData.buildings_list.length; i++) {
@@ -391,7 +393,6 @@ const fontFamily = ['Recursive', 'sans-serif'];
         };
         background.width = 10000;
         background.height = 10000;
-        background.tileScale.set(0.5);
         background.anchor.x = 0;
         background.anchor.y = 0;
         background.position.x = 0;
@@ -566,9 +567,9 @@ const fontFamily = ['Recursive', 'sans-serif'];
         for (let i=0; i<entities.length; i++) {
             let entity = entities[i];
             let entityData = {
-                x: entity.x,
-                y: entity.y,
-                z: entity.z,
+                x: parseFloat(entity.x),
+                y: parseFloat(entity.y),
+                z: parseInt(entity.z),
                 rotation: entity.rotation,
                 type: entity.type,
                 subtype: entity.subtype
@@ -594,14 +595,14 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 let entity;
                 switch (entityData.type) {
                     case 'building':
-                        entity = createBuilding(entityData.subtype, entityData.x, entityData.y, entityData.z);
+                        entity = createBuilding(entityData.subtype, parseFloat(entityData.x), parseFloat(entityData.y), parseInt(entityData.z));
                         break;
                     default:
                         console.error('Attempted to load invalid entity:', entityData);
                         continue;
                 }
-                xTotal += entityData.x;
-                yTotal += entityData.y;
+                xTotal += parseFloat(entityData.x);
+                yTotal += parseFloat(entityData.y);
 
                 if (entity) {
                     entity.rotation = entityData.rotation;
@@ -1202,8 +1203,8 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 entity.addChild(sprite);
             } else if (resources[building.texture]) {
                 sprite.texture = resources[building.texture].texture;
-                sprite.tileScale.set(0.5);
             }
+            entity.sprite = sprite;
         }
 
         if (!building.texture && !entity.isRail) {
@@ -1728,8 +1729,15 @@ const fontFamily = ['Recursive', 'sans-serif'];
                     currentBuilding.y = gmy - currentBuildingOffset.y;
                     if (game.settings.enableGrid || keys[16]) {
                         let gridSize = game.settings.gridSize ? game.settings.gridSize : 16;
-                        currentBuilding.x = Math.floor(currentBuilding.x / gridSize) * gridSize;
-                        currentBuilding.y = Math.floor(currentBuilding.y / gridSize) * gridSize;
+                        //Had to do all of this funky math to support half/quarter meters without changing the building center.
+                        let width = currentBuilding.building.width;
+                        let length = currentBuilding.building.length;
+                        let xOffsetWidth = (((width % Math.floor(width))) * METER_PIXEL_SIZE)/2;
+                        let yOffsetHeight = (((length % Math.floor(length))) * METER_PIXEL_SIZE)/2;
+                        let xOffset = (Math.cos(currentBuilding.rotation - Math.PI/2) * xOffsetWidth) + (Math.sin(currentBuilding.rotation) * yOffsetHeight);
+                        let yOffset = (Math.sin(currentBuilding.rotation - Math.PI/2) * yOffsetHeight) + (Math.cos(currentBuilding.rotation) * xOffsetWidth);
+                        currentBuilding.x = Math.round((Math.round(currentBuilding.x / gridSize) * gridSize) - xOffset);
+                        currentBuilding.y = Math.round((Math.round(currentBuilding.y / gridSize) * gridSize) - yOffset);
                     }
                 }
 

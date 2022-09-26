@@ -642,7 +642,7 @@
                 width: 5,
                 length: 5,
                 icon: 'buildings/ConcreteFoundation02Icon.png',
-                texture: 'concrete_corner.png',
+                texture: 'concrete_corner_meter.png',
                 sortOffset: -1000,
                 cost: {
                     gravel: 75
@@ -656,7 +656,7 @@
                 width: 5,
                 length: 5,
                 icon: 'buildings/ConcreteFoundation01Icon.png',
-                texture: 'concrete.png',
+                texture: 'concrete_meter.png',
                 sortOffset: -1000,
                 cost: {
                     gravel: 75
@@ -670,7 +670,7 @@
                 width: 5,
                 length: 10,
                 icon: 'buildings/ConcreteFoundation03Icon.png',
-                texture: 'concrete.png',
+                texture: 'concrete_meter.png',
                 sortOffset: -1000,
                 cost: {
                     gravel: 115
@@ -684,7 +684,7 @@
                 width: 10,
                 length: 10,
                 icon: 'buildings/ConcreteFoundation04Icon.png',
-                texture: 'concrete.png',
+                texture: 'concrete_meter.png',
                 sortOffset: -1000,
                 cost: {
                     gravel: 150
@@ -1040,7 +1040,7 @@
                 width: 3,
                 length: 3,
                 range: 24,
-                icon: 'buildings/CraneIcon.png',
+                icon: 'buildings/CraneIcon.webp',
                 cost: {
                     processed_construction_material: 10
                 }
@@ -1054,7 +1054,7 @@
                 width: 1,
                 length: 1,
                 icon: 'buildings/PowerPoleIcon.webp',
-                texture: 'concrete.png',
+                texture: 'concrete_meter.png',
                 cost: {
                     basic_material: 20
                 }
@@ -1085,31 +1085,30 @@
                     input: {
                         diesel: 25
                     }
-                }]
-            },
-            petrol_power_plant: {
-                name: 'Petrol Power Plant',
-                category: 'power',
-                power: 12,
-                width: 7,
-                length: 7,
-                icon: 'buildings/DieselPowerPlantIcon.webp',
-                cost: {
-                    basic_material: 150,
-                    processed_construction_material: 50
-                },
-                production: [{
-                    time: 90,
-                    input: {
-                        petrol: 50
+                }],
+                upgrades: {
+                    petrol_power: {
+                        name: 'Petrol Power Plant',
+                        description: 'Generates a large amount of power using Petrol as input.',
+                        power: 12,
+                        icon: 'buildings/DieselPowerPlantIcon.webp',
+                        cost: {
+                            processed_construction_material: 50
+                        },
+                        production: [{
+                            time: 90,
+                            input: {
+                                petrol: 50
+                            }
+                        }]
                     }
-                }]
+                }
             },
             power_station: {
                 name: 'Power Station',
                 description: 'This Facility generates a large amount of power using Oil or Coal as inputs.', // Requires Construction Vehicle + Requires Tech
                 category: 'power',
-                icon: 'buildings/PowerStation.png',
+                icon: 'buildings/PowerStationIcon.webp',
                 power: 10,
                 width: 14,
                 length: 13,
@@ -1259,7 +1258,7 @@
                 production: [{
                     time: 50,
                     output: {
-                        water: 1
+                        water: 50
                     }
                 }]
             },
@@ -1276,7 +1275,7 @@
                 production: [{
                     time: 50,
                     output: {
-                        oil: 1
+                        oil: 50
                     }
                 }]
             },
@@ -2363,9 +2362,9 @@
                 description: 'Used for storing raw resources for transfer into and out of Facilities. The stockpile for this structure can be reserved.', // Requires Construction Vehicle
                 category: 'factories',
                 icon: 'buildings/ResourceTransferStationIcon.webp',
-                texture: 'buildings/resource_transfer_station.png',
+                texture: 'buildings/resource_transfer_station_meter.png',
                 width: 6,
-                length: 9,
+                length: 9.5,
                 cost: {
                     construction_material: 35
                 }
@@ -2375,7 +2374,7 @@
                 description: 'Used for storing materials for transfer into and out of Facilities. The stockpile for this structure can be reserved.', // Requires Construction Vehicle
                 category: 'factories',
                 icon: 'buildings/MaterialTransferStationIcon.webp',
-                texture: 'buildings/material_transfer_station.png',
+                texture: 'buildings/material_transfer_station_meter.png',
                 width: 6,
                 length: 12,
                 cost: {
@@ -2387,9 +2386,9 @@
                 description: 'Used for storing materials for transfer into and out of Facilities. The stockpile for this structure can be reserved.', // Requires Construction Vehicle
                 category: 'factories',
                 icon: 'buildings/LiquidTransferStationIcon.webp',
-                texture: 'buildings/liquid_transfer_station.png',
+                texture: 'buildings/liquid_transfer_station_meter.png',
                 width: 6,
-                length: 8,
+                length: 8.5,
                 cost: {
                     construction_material: 35
                 }
@@ -2431,9 +2430,24 @@
                 let upgradeKey = upgradeKeys[j];
                 let upgrade = building.upgrades[upgradeKey];
                 let upgradeBuilding = Object.assign({}, building, upgrade);
+
+                upgradeBuilding.parentKey = buildingKey;
+                upgradeBuilding.parentName = building.name;
+                upgradeBuilding.upgradeName = upgrade.name;
                 upgradeBuilding.name = building.name + ' (' + upgrade.name + ')';
+
+                let upgradeBuildingCost = Object.assign({}, building.cost);
+                for (const [resource, amount] of Object.entries(upgradeBuilding.cost)) {
+                    let resourceAmt = building.cost[resource];
+                    if (resourceAmt) {
+                        upgradeBuildingCost[resource] = resourceAmt + amount;
+                    } else {
+                        upgradeBuildingCost[resource] = amount;
+                    }
+                }
+                upgradeBuilding.cost = upgradeBuildingCost;
+
                 window.objectData.buildings[buildingKey + '_' + upgradeKey] = upgradeBuilding;
-                //TODO: Combine costs for upgrades with the base cost.
             }
         }
     }
@@ -2449,8 +2463,24 @@
             let key = keys[j];
             let data = objectData[key];
             data.key = key;
+
+            if (objectDataKey == 'buildings' && data.production) {
+                if (data.power > 0) {
+                    data.production.hasOutput = true;
+                } else {
+                    for (let i = 0; i < data.production.length; i++) {
+                        let recipe = data.production[i];
+                        if (recipe.output) {
+                            data.production.hasOutput = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
             objectList.push(data);
         }
+
         window.objectData[objectDataKey + '_list'] = objectList;
 
         objectList.sort((a, b) => {
