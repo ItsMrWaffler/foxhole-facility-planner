@@ -52,8 +52,8 @@ Vue.component('app-game-sidebar', {
             }
             this.currentMenuData = menuData;
         },
-        selectTeam: function(team) {
-            game.settings.selectedTeam = game.settings.selectedTeam != team ? team : null;
+        selectFaction: function(faction) {
+            game.settings.selectedFaction = game.settings.selectedFaction != faction ? faction : null;
             game.updateSettings();
         },
         showHoverMenu: function(data) {
@@ -63,9 +63,9 @@ Vue.component('app-game-sidebar', {
     template: html`
     <div id="sidebar">
         <div id="sidebar-header">
-            <button class="colonial-button" :class="{ selected: game.settings.selectedTeam == 'c' }" @click="selectTeam('c')"></button>
+            <button class="colonial-button" :class="{ selected: game.settings.selectedFaction == 'c' }" @click="selectFaction('c')"></button>
             <img class="sidebar-logo" src="/assets/logo_transparent.webp">
-            <button class="warden-button" :class="{ selected: game.settings.selectedTeam == 'w' }" @click="selectTeam('w')"></button>
+            <button class="warden-button" :class="{ selected: game.settings.selectedFaction == 'w' }" @click="selectFaction('w')"></button>
         </div>
         <div id="sidebar-body">
             <div v-if="!currentMenu" class="menu-body">
@@ -108,7 +108,7 @@ Vue.component('app-game-sidebar', {
             <div class="building-info-body">
                 <p class="building-info-description">{{hoverData.description}}</p>
                 <div class="building-info-production" v-if="hoverData.production && hoverData.production.length && hoverData.production.hasOutput">
-                    <div v-for="(recipe, index) in hoverData.production" v-if="!recipe.team || !game.settings.selectedTeam || recipe.team == game.settings.selectedTeam" class="produced-resource-row">
+                    <div v-for="(recipe, index) in hoverData.production" v-if="!recipe.faction || !game.settings.selectedFaction || recipe.faction == game.settings.selectedFaction" class="produced-resource-row">
                         <div class="produced-resource">
                             <span v-for="(amount, resourceId) in recipe.output">{{objectData.resources[resourceId].name}}</span><span v-if="hoverData.power > 0">Power</span>
                         </div>
@@ -178,6 +178,12 @@ Vue.component('app-menu-building-selected', {
             }
             this.$forceUpdate();
         },
+        changeUpgrade: function(upgrade) {
+            this.bmc();
+            if (game.selectedEntity && game.selectedEntity.building) {
+                game.upgradeBuilding(game.selectedEntity, upgrade);
+            }
+        },
         destroyBuilding: function() {
             this.bmc();
             if (game.selectedEntity) {
@@ -205,10 +211,20 @@ Vue.component('app-menu-building-selected', {
                 <input class="app-input" type="number" v-model="entityRotation" @change="updateRotation">
             </label>
         </div>
+        <div v-if="selectedEntity.type === 'building' && selectedEntity.building && selectedEntity.building.upgrades">
+            <h5>Select Upgrade</h5>
+            <div class="upgrade-list">
+                <button class="resource-icon upgrade-icon" v-for="(upgrade, key) in selectedEntity.building.upgrades" :title="upgrade.name"
+                    :class="{'selected-upgrade': selectedEntity.building.parentKey && selectedEntity.building.key === selectedEntity.building.parentKey + '_' + key}"
+                    :style="{backgroundImage:'url(/assets/' + (upgrade.part ? upgrade.part : (upgrade.icon ? upgrade.icon : selectedEntity.building.icon)) + ')'}"
+                    @click="changeUpgrade(key)">
+                </button>
+            </div>
+        </div>
         <div v-if="selectedEntity.type === 'building' && selectedEntity.building && selectedEntity.building.production && selectedEntity.building.production.length">
             <h5>Select Production</h5>
             <div class="select-production" style="margin-bottom:12px; text-align:center;" v-for="(production, index) in selectedEntity.building.production"
-                 v-if="!production.team || !game.settings.selectedTeam || production.team == game.settings.selectedTeam" :class="{'selected-production': selectedEntity.selectedProduction === index}" @click="changeProduction(index)">
+                 v-if="!production.faction || !game.settings.selectedfaction || production.faction == game.settings.selectedfaction" :class="{'selected-production': selectedEntity.selectedProduction === index}" @click="changeProduction(index)">
                 <div class="production-row">
                     <div class="select-production-input" v-if="production.input">
                         <app-game-resource-icon v-for="(value, key) in production.input" :resource="key" :amount="value" :column="true" />
@@ -263,14 +279,11 @@ Vue.component('app-menu-construction-list', {
     template: html`
     <div id="construction-page">
         <select class="app-input construction-category" v-model="game.selectedBuildingCategory" @change="refresh">
-            <option value="foundations">Foundations</option>
-            <option value="factories">Factories</option>
-            <option value="harvesters">Harvesters</option>
-            <option value="power">Power</option>
-            <option value="misc">Miscellaneous</option>
+            <option value="all">All Buildings</option>
+            <option v-for="(category, key) in buildingCategories" v-bind:value="key">{{category.name}}</option>
         </select>
         <div class="construction-items" class="menu-page">
-            <div v-for="building in buildings" v-if="!building.hideInList && building.category === game.selectedBuildingCategory" class="build-icon" :style="{backgroundImage:'url(/assets/' + building.icon + ')'}"
+            <div v-for="building in buildings" v-if="!building.hideInList && (game.selectedBuildingCategory === 'all' || building.category === game.selectedBuildingCategory) && (!building.parentName || game.settings.showUpgradesAsBuildings)" class="build-icon" :style="{backgroundImage:'url(/assets/' + building.icon + ')'}"
                 @mouseenter="bme(); buildingHover(building)" @mouseleave="buildingHover(null)" v-on:click="buildBuilding(building)">
             </div>
         </div>
@@ -475,13 +488,10 @@ Vue.component('app-menu-settings', {
                 <input class="app-input" type="number" v-model="game.settings.snapRotationDegrees" @input="game.updateSettings">
             </label>
         </div>
-        <!--
-        Not including this until we get an upgrade selection inside of buildings since you won't be able to choose if we disable them in construction list.
         <label class="settings-option-wrapper">
-            <i class="fa fa-th-large" aria-hidden="true"></i> Show Upgrades as Buildings
+            <i class="fa fa-filter" aria-hidden="true"></i> Show Upgrades in Building List
             <input class="app-input" type="checkbox" v-model="game.settings.showUpgradesAsBuildings" @change="game.updateSettings">
         </label>
-        -->
     </div>
     `
 });

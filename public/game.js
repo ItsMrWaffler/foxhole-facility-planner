@@ -9,7 +9,7 @@ const game = {
         gridSize: 16,
         enableSnapRotation: true,
         snapRotationDegrees: 15,
-        selectedTeam: null,
+        selectedFaction: null,
         showUpgradesAsBuildings: true,
         volume: 1
     },
@@ -146,11 +146,13 @@ const fontFamily = ['Recursive', 'sans-serif'];
     let asset_list = {
         white: 'white.png',
         background: 'grid_32.webp',
-        wall: 'wall.png'
+        buildingBackground: 'building_background.png'
     };
     for (let i=0; i<window.objectData.buildings_list.length; i++) {
         let building = window.objectData.buildings_list[i];
-        asset_list[building.icon] = building.icon;
+        if (building.icon) {
+            asset_list[building.icon] = building.icon;
+        }
 
         if (building.texture) {
             if (typeof building.texture === 'object' && !Array.isArray(building.texture)) {
@@ -1178,11 +1180,21 @@ const fontFamily = ['Recursive', 'sans-serif'];
         }
 
         if (!entity.isRail) {
-            sprite = new PIXI.TilingSprite(resources['wall'].texture);
+            sprite = new PIXI.TilingSprite(resources['buildingBackground'].texture);
             sprite.width = building.width * METER_PIXEL_SIZE;
             sprite.height = building.length * METER_PIXEL_SIZE;
             sprite.anchor.set(0.5);
             entity.addChild(sprite);
+            
+            if (building.category !== 'foundations') {
+                if (!building.texture) {
+                    sprite.tint = (building.color ? building.color : (buildingCategories[building.category] ? buildingCategories[building.category].color : 0x505050)); // Dark Grey
+                }
+                let spriteBorder = new PIXI.Graphics();
+                spriteBorder.lineStyle(3, 0xFFFFFF);
+                spriteBorder.drawRect(-(sprite.width/2), -(sprite.height/2), sprite.width, sprite.height);
+                entity.addChild(spriteBorder);
+            }
         }
 
         let frameX = 0;
@@ -1207,19 +1219,22 @@ const fontFamily = ['Recursive', 'sans-serif'];
             entity.sprite = sprite;
         }
 
-        if (!building.texture && !entity.isRail) {
-            let iconBackground = new PIXI.Sprite(resources['white'].texture);
-            iconBackground.tint = 0x3d3d3d;
-            iconBackground.anchor.set(0.5);
-            iconBackground.width = 64;
-            iconBackground.height = 64;
-            iconBackground.anchor.set(0.5);
+        if (!building.texture && building.category !== 'foundations' && !entity.isRail) {
+            let iconBackground = new PIXI.Graphics();
+            iconBackground.lineStyle(3, 0xFFFFFF);
+            iconBackground.beginFill(0x0B0B0B);
+            if (building.key === 'fuel_silo') {
+                iconBackground.drawRect(-32, -32, 64, 64); // Unfortunately fuel silo is exceptionally small compared to other buildings.
+            } else {
+                iconBackground.drawRect(-40, -40, 80, 80);
+            }
+            iconBackground.endFill();
             entity.addChild(iconBackground);
 
             let icon = new PIXI.Sprite(resources[building.icon].texture);
             icon.anchor.set(0.5);
-            icon.width = iconBackground.width;
-            icon.height = iconBackground.height;
+            icon.width = iconBackground.width - 10;
+            icon.height = iconBackground.height - 10;
             icon.anchor.set(0.5);
             entity.addChild(icon);
         }
@@ -1406,22 +1421,45 @@ const fontFamily = ['Recursive', 'sans-serif'];
 
         let boundsBuffer = 15;
         entity.canGrab = function() {
+            let bounds = entity.getBounds(true);
             if (entity.isRail && entity.bezier) {
-                let bounds = entity.getBounds(true);
                 bounds.x -= boundsBuffer;
                 bounds.y -= boundsBuffer;
                 bounds.width += boundsBuffer*2;
                 bounds.height += boundsBuffer*2;
-                if (mx >= bounds.x && mx <= bounds.x+bounds.width && my >= bounds.y && my <= bounds.y+bounds.height) {
+            }
+            if (mx >= bounds.x && mx <= bounds.x+bounds.width && my >= bounds.y && my <= bounds.y+bounds.height) {
+                if (entity.isRail && entity.bezier) {
                     let mousePos = entity.toLocal({x: mx, y: my}, undefined, undefined, true);
                     let projection = entity.bezier.project(mousePos);
                     if (projection.d <= 20) {
                         return true;
                     }
+                } else {
+                    // https://stackoverflow.com/a/67732811 <3
+                    const w = entity.width/2;
+                    const h = entity.height/2;
+                    const r = entity.rotation;
+
+                    // Rotate entity bounds.
+                    const [ax, ay] = [Math.cos(r), Math.sin(r)];
+                    const t = (x, y) => ({x: x * ax - y * ay + entity.x, y: x * ay + y * ax + entity.y});
+                    const bBounds = [t(w, h), t(-w, h), t(-w, -h), t(w, -h)];
+
+                    // Check if mouse position is within bounds.
+                    let i = 0;
+                    const l = {p1: bBounds[3]};
+                    while (i < bBounds.length) {
+                        l.p2 = bBounds[i++];
+                        if (!(0 < (l.p2.x - l.p1.x) * (gmy - l.p1.y) - (l.p2.y - l.p1.y) * (gmx - l.p1.x))) {
+                            return false;
+                        }
+                        l.p1 = l.p2;
+                    }
+                    return true;
                 }
-                return false;
             }
-            return Math.distanceBetween(entity, {x: gmx, y: gmy}) < 50;
+            return false;
         };
 
         entity.getZIndex = function() {
@@ -1586,6 +1624,19 @@ const fontFamily = ['Recursive', 'sans-serif'];
             };
         }
     };
+
+    game.upgradeBuilding = function(entity, upgrade) {
+        let building = entity.building;
+        if (building) {
+            upgrade = building.parentKey ? building.parentKey + '_' + upgrade : building.key + '_' + upgrade;
+            upgrade = building.key === upgrade ? building.parentKey || building.key : upgrade;
+            building = createBuilding(upgrade, entity.x, entity.y, 0);
+            building.rotation = entity.rotation;
+            game.selectEntity(building);
+            entity.remove();
+            return building;
+        }
+    }
 
     game.removeEntities = function() {
         if (game.selectedEntity) {
