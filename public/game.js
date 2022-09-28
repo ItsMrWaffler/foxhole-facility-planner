@@ -271,6 +271,11 @@ const fontFamily = ['Recursive', 'sans-serif'];
             if (debugText) {
                 debugText.visible = ENABLE_DEBUG;
             }
+            for (let i = 0; i < entities.length; i++) {
+                if (entities[i].sizeSprite) {
+                    entities[i].sizeSprite.visible = ENABLE_DEBUG;
+                }
+            }
         } else if (key === 27) {
             if (currentBuilding) {
                 currentBuilding.remove();
@@ -1190,6 +1195,18 @@ const fontFamily = ['Recursive', 'sans-serif'];
         let frameWidth = 0;
         let frameHeight = 0;
         let sheet = null;
+        /*<Debug Sprite>*/
+        entity.sizeSprite = new PIXI.Graphics();
+        entity.sizeSprite.visible = false;
+        entity.sizeSprite.beginFill(0xF88E36);
+        entity.sizeSprite.alpha = 0.6;
+        entity.sizeSprite.lineStyle(0, 0xF88E36);
+        entity.sizeSprite.width = building.width * METER_PIXEL_SIZE;
+        entity.sizeSprite.height = building.length * METER_PIXEL_SIZE;
+        entity.sizeSprite.drawRect(0 - (entity.sizeSprite._width / 2), 0 - (entity.sizeSprite._height / 2), entity.sizeSprite._width, entity.sizeSprite._height);
+        entity.sizeSprite.endFill();
+        entity.addChild(entity.sizeSprite);
+        /*</Debug Sprite>*/
         if (building.texture && !entity.isRail) {
             if (typeof building.texture === 'object' && !Array.isArray(building.texture)) {
                 sheet = loadSpritesheet(resources[building.texture.sheet].texture, building.texture.width, building.texture.height);
@@ -1597,7 +1614,19 @@ const fontFamily = ['Recursive', 'sans-serif'];
             entity.remove();
         }
     }
-    /*Gurney's super awesome collision detection*/
+    game.objCompare = function(obj1, obj2) {
+        if (
+            obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
+            obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
+            obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
+            (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
+        ) {
+            obj1.isColliding = true;
+            if (ENABLE_DEBUG) {
+                console.log(obj1.building.name, 'is colliding with', obj2.building.name);
+            }
+        }
+    }
     game.checkCollisions = function(obj1) {
         obj1.isColliding = false;
         let obj2;
@@ -1605,32 +1634,18 @@ const fontFamily = ['Recursive', 'sans-serif'];
             for (let i = 0; i < entities.length; i++) {
                 if (entities[i] != obj1 && entities[i].building.category == 'foundations'){
                     obj2 = entities[i];
-                    if (
-                        obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
-                        obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
-                        obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
-                        (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
-                    ) {
-                        obj1.isColliding = true;
-                    }
-                }                
+                    game.objCompare(obj1, obj2);               
+                }
             }
         } else {
             for (let i = 0; i < entities.length; i++) {
                 if (entities[i] != obj1 && entities[i].building.category != 'foundations'){
                     obj2 = entities[i];
-                    if (
-                    obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
-                    obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
-                    obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
-                    (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
-                ) {
-                    obj1.isColliding = true;
+                    objCompare(obj1, obj2);
+                }
             }
         }
     }
-}
-}
 
     const FPSMIN = 30;
     let fpsCheck = null;
@@ -1720,6 +1735,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 if (!selectedPoint && (!currentBuilding.selectPosition || (Date.now()-currentBuilding.selectTime > 250 || Math.distanceBetween(currentBuilding.selectPosition, {x: gmx, y: gmy}) > 20))) {
                     currentBuilding.selectPosition = null;
                     game.checkCollisions(currentBuilding);
+                    currentBuilding.sizeSprite.visible = ENABLE_DEBUG;
                     if (currentBuilding.isColliding){
                         currentBuilding.alpha = 0.5;
                     } else {
