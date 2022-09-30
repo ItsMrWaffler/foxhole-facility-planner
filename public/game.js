@@ -16,7 +16,6 @@ const game = {
     isPlayScreen: false,
     selectedBuildingCategory: 'foundations'
 };
-
 function escapeHtml(str) {
     if (str && str.replace) {
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -38,7 +37,6 @@ function getQuery() {
     return vars;
 }
 game.queryData = getQuery();
-
 
 try {
     if (window.localStorage) {
@@ -272,11 +270,6 @@ const fontFamily = ['Recursive', 'sans-serif'];
             ENABLE_DEBUG = !ENABLE_DEBUG;
             if (debugText) {
                 debugText.visible = ENABLE_DEBUG;
-            }
-            for (let i = 0; i < entities.length; i++) {
-                if (entities[i].sizeSprite) {
-                    entities[i].sizeSprite.visible = ENABLE_DEBUG;
-                }
             }
         } else if (key === 27) {
             if (currentBuilding) {
@@ -1178,7 +1171,18 @@ const fontFamily = ['Recursive', 'sans-serif'];
             }
             entity.addChild(entity.rangeSprite);
         }
-        
+        /*<Overlap Sprite>*/
+        entity.overlapSprite = new PIXI.Graphics();
+        entity.overlapSprite.visible = true;
+        entity.overlapSprite.beginFill(0xF88E36);
+        entity.overlapSprite.alpha = 1;
+        entity.overlapSprite.lineStyle(0, 0xF88E36);
+        entity.overlapSprite.width = building.width * METER_PIXEL_SIZE;
+        entity.overlapSprite.height = building.length * METER_PIXEL_SIZE;
+        entity.overlapSprite.drawRect(0 - (entity.overlapSprite._width / 2), 0 - (entity.overlapSprite._height / 2), entity.overlapSprite._width, entity.overlapSprite._height);
+        entity.overlapSprite.endFill();
+        entity.addChild(entity.overlapSprite);
+        /*</Overlap Sprite>*/
         entity.isRail = false;
         if (entity.subtype === 'rail_small_gauge' || entity.subtype === 'rail_large_gauge' || entity.subtype === 'provisional_road') {
             entity.isRail = true;
@@ -1207,18 +1211,6 @@ const fontFamily = ['Recursive', 'sans-serif'];
         let frameWidth = 0;
         let frameHeight = 0;
         let sheet = null;
-        /*<Debug Sprite>*/
-        entity.sizeSprite = new PIXI.Graphics();
-        entity.sizeSprite.visible = false;
-        entity.sizeSprite.beginFill(0xF88E36);
-        entity.sizeSprite.alpha = 0.6;
-        entity.sizeSprite.lineStyle(0, 0xF88E36);
-        entity.sizeSprite.width = building.width * METER_PIXEL_SIZE;
-        entity.sizeSprite.height = building.length * METER_PIXEL_SIZE;
-        entity.sizeSprite.drawRect(0 - (entity.sizeSprite._width / 2), 0 - (entity.sizeSprite._height / 2), entity.sizeSprite._width, entity.sizeSprite._height);
-        entity.sizeSprite.endFill();
-        entity.addChild(entity.sizeSprite);
-        /*</Debug Sprite>*/
         if (building.texture && !entity.isRail) {
             if (typeof building.texture === 'object' && !Array.isArray(building.texture)) {
                 sheet = loadSpritesheet(resources[building.texture.sheet].texture, building.texture.width, building.texture.height);
@@ -1282,7 +1274,9 @@ const fontFamily = ['Recursive', 'sans-serif'];
             if (entity.rangeSprite) {
                 entity.rangeSprite.visible = false;
             }
-
+            if (entity.alpha != 1) {
+                entity.alpha = 1;
+            }
             if (entity.isRail && entity.shouldSelectLastRailPoint && !selectedPoint) {
                 entity.shouldSelectLastRailPoint = false;
                 forceMouseDown[0] = true;
@@ -1567,7 +1561,6 @@ const fontFamily = ['Recursive', 'sans-serif'];
             if (entity.sprite) {
                 entity.removeChild(entity.sprite);
             }
-
             if (points.length >= 2) {
                 let bezierPoints = [];
                 for (let i=0; i<points.length; i++) {
@@ -1623,7 +1616,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
         if (currentBuilding) {
             currentBuilding.selectTime = Date.now();
             currentBuilding.selectPosition = {x: gmx, y: gmy};
-        }
+        }        
     };
 
     game.startBuild = function(building) {
@@ -1665,37 +1658,17 @@ const fontFamily = ['Recursive', 'sans-serif'];
             entity.remove();
         }
     }
-    game.objCompare = function(obj1, obj2) {
-        if (
-            obj1.x < obj2.x + (obj2.building.width * METER_PIXEL_SIZE) &&
-            obj1.x + (obj1.building.width * METER_PIXEL_SIZE) > obj2.x &&
-            obj1.y < obj2.y + (obj2.building.length * METER_PIXEL_SIZE) &&
-            (obj1.building.length * METER_PIXEL_SIZE) + obj1.y > obj2.y             
-        ) {
-            obj1.isColliding = true;
-            if (ENABLE_DEBUG) {
-                console.log(obj1.building.name, 'is colliding with', obj2.building.name);
-            }
-        }
-    }
-    game.checkCollisions = function(obj1) {
-        obj1.isColliding = false;
-        let obj2;
-        if (obj1.building.category == 'foundations'){
-            for (let i = 0; i < entities.length; i++) {
-                if (entities[i] != obj1 && entities[i].building.category == 'foundations'){
-                    obj2 = entities[i];
-                    game.objCompare(obj1, obj2);               
-                }
-            }
-        } else {
-            for (let i = 0; i < entities.length; i++) {
-                if (entities[i] != obj1 && entities[i].building.category != 'foundations'){
-                    obj2 = entities[i];
-                    objCompare(obj1, obj2);
-                }
-            }
-        }
+    game.checkCollisions = function(currBuilding, loopBuilding) {
+        let V = function (x, y) { return new SAT.Vector(x, y); };
+        let B = function (pos, w, h) { return new SAT.Box(pos, w, h); };
+        let box1 = new B(new V(currBuilding.overlapSprite.vertexData[0],currBuilding.overlapSprite.vertexData[1]), currBuilding.overlapSprite.width, currBuilding.overlapSprite.height).toPolygon();
+        let box2 = new B(new V(loopBuilding.overlapSprite.vertexData[0],loopBuilding.overlapSprite.vertexData[1]), loopBuilding.overlapSprite.width, loopBuilding.overlapSprite.height).toPolygon();
+        box1.setAngle(currBuilding.rotation);
+        box2.setAngle(loopBuilding.rotation);
+        let response = new SAT.Response();
+        let collided = SAT.testPolygonPolygon(box1, box2);
+        response.clear();
+        return collided;
     }
 
     const FPSMIN = 30;
@@ -1783,18 +1756,39 @@ const fontFamily = ['Recursive', 'sans-serif'];
                 };
                 currentBuilding.rotation = angle;
             } else {
+                priorBuilding = currentBuilding;
                 if (!selectedPoint && (!currentBuilding.selectPosition || (Date.now()-currentBuilding.selectTime > 250 || Math.distanceBetween(currentBuilding.selectPosition, {x: gmx, y: gmy}) > 20))) {
                     currentBuilding.selectPosition = null;
-                    game.checkCollisions(currentBuilding);
-                    currentBuilding.sizeSprite.visible = ENABLE_DEBUG;
-                    if (currentBuilding.isColliding){
+                    /*Gurney's attempt at collision detection*/
+                    collFound = false;
+                    if (currentBuilding.building.category == 'foundations'){                        
+                        for (let i = 0; i < entities.length; i++) {                            
+                            if (entities[i] != currentBuilding && entities[i].building.category == 'foundations') {
+                                if (game.checkCollisions(currentBuilding, entities[i])){
+                                    collFound = true;                                  
+                                }
+                            }
+                        }                        
+                    } else {
+                        for (let i = 0; i < entities.length; i++) {
+                            if (entities[i] != currentBuilding && entities[i].building.category != 'foundations') {
+                                if (game.checkCollisions(currentBuilding, entities[i])){
+                                    collFound = true;                                  
+                                }
+                            }           
+                        }                      
+                    }
+                    if (collFound) {
+                        currentBuilding.isColliding = true;
                         currentBuilding.alpha = 0.5;
                     } else {
+                        currentBuilding.isColliding = false;
                         currentBuilding.alpha = 1;
                     }
                     currentBuilding.x = gmx - currentBuildingOffset.x;
                     currentBuilding.y = gmy - currentBuildingOffset.y;
-                    if (game.settings.enableGrid || keys[16]) {
+                    
+                    if (game.settings.enableGrid || keys[16] && !currentBuilding.isColliding) {
                         let gridSize = game.settings.gridSize ? game.settings.gridSize : 16;
                         //Had to do all of this funky math to support half/quarter meters without changing the building center.
                         let width = currentBuilding.building.width;
@@ -1844,14 +1838,17 @@ const fontFamily = ['Recursive', 'sans-serif'];
                     }
                 }
             }
-        }
-
+        } else {
+            for (let i = 0; i < entities.length; i++) {
+                entities[i].alpha = 1;
+            }
+        }       
+        
         if (ENABLE_DEBUG) {
             debugText.text = 'Press F2 to disable debug\n';
             debugText.text += 'FPS: ' + Math.round(1000/delta) + '\n';
             debugText.text += 'Latency: ' + latency + ' ms\n';
         }
-
         app.cstage.x = Math.floor(-camera.x);
         app.cstage.y = Math.floor(-camera.y);
         app.cstage.scale.x = camera.zoom;
