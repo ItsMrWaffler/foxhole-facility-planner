@@ -700,7 +700,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
 
             if (!currentBuilding && !selectedPoint) {
                 entities.sort(function (a, b) {
-                    return b.getZIndex() - a.getZIndex()
+                    return a.getZIndex() - b.getZIndex()
                 });
                 for (let i=0; i<entities.length; i++) {
                     let entity = entities[i];
@@ -711,6 +711,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
                         };
                         game.setCurrentBuilding(entity);
                         game.selectEntity(entity);
+                        break;
                     }
                 }
             }
@@ -1433,31 +1434,33 @@ const fontFamily = ['Recursive', 'sans-serif'];
         let boundsBuffer = 15;
         entity.canGrab = function() {
             let bounds = entity.getBounds(true);
-            if (entity.isRail && entity.bezier) {
-                bounds.x -= boundsBuffer;
-                bounds.y -= boundsBuffer;
-                bounds.width += boundsBuffer*2;
-                bounds.height += boundsBuffer*2;
-            }
-            if (mx >= bounds.x && mx <= bounds.x+bounds.width && my >= bounds.y && my <= bounds.y+bounds.height) {
+            let boundsAdjustedPos = app.cstage.toLocal({x: bounds.x, y: bounds.y}, app.stage, undefined, true);
+            bounds.x = boundsAdjustedPos.x - boundsBuffer;
+            bounds.y = boundsAdjustedPos.y - boundsBuffer;
+            bounds.width = bounds.width/game.camera.zoom;
+            bounds.height = bounds.height/game.camera.zoom;
+            bounds.width += boundsBuffer * 2;
+            bounds.height += boundsBuffer * 2;
+
+            if (gmx >= bounds.x && gmx <= bounds.x+bounds.width && gmy >= bounds.y && gmy <= bounds.y+bounds.height) {
                 if (entity.isRail && entity.bezier) {
-                    let mousePos = entity.toLocal({x: mx, y: my}, undefined, undefined, true);
+                    let mousePos = entity.toLocal({x: gmx, y: gmy}, app.cstage, undefined, true);
                     let projection = entity.bezier.project(mousePos);
-                    if (projection.d <= 20) {
+                    if (projection.d <= 25) {
                         return true;
                     }
                 } else {
                     // https://stackoverflow.com/a/67732811 <3
-                    const w = entity.width/2;
-                    const h = entity.height/2;
+                    const w = entity.width / 2;
+                    const h = entity.height / 2;
                     const r = entity.rotation;
 
-                    // Rotate entity bounds.
+                    // Create new oriented bounds.
                     const [ax, ay] = [Math.cos(r), Math.sin(r)];
                     const t = (x, y) => ({x: x * ax - y * ay + entity.x, y: x * ay + y * ax + entity.y});
                     const bBounds = [t(w, h), t(-w, h), t(-w, -h), t(w, -h)];
 
-                    // Check if mouse position is within bounds.
+                    // Check if mouse position is within new bounds.
                     let i = 0;
                     const l = {p1: bBounds[3]};
                     while (i < bBounds.length) {
@@ -1808,7 +1811,7 @@ const fontFamily = ['Recursive', 'sans-serif'];
                         if (!entity.isRail || !entity.bezier) {
                             continue;
                         }
-                        let mousePos = entity.toLocal({x: mx, y: my}, undefined, undefined, true);
+                        let mousePos = entity.toLocal({x: gmx, y: gmy}, app.cstage, undefined, true);
                         let projection = entity.bezier.project(mousePos);
                         if (entity !== currentBuilding && entity.type === 'building' && currentBuilding.subtype === entity.subtype && projection.d <= 25) {
                             if (projection.t >= 0.95) {
